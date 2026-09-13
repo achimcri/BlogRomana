@@ -1,0 +1,32 @@
+# Imagine pentru dezvoltare locala: ruleaza `next dev` cu hot reload.
+# Pentru Azure va exista un Dockerfile separat, cu build standalone (Faza 7).
+FROM node:20-alpine
+
+# libc6-compat: unele binare native (inclusiv sharp) au nevoie de el pe Alpine.
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# Instalam dependentele intai, ca stratul sa fie reutilizat cand se schimba
+# doar codul. Schema si configul Prisma sunt necesare pentru `prisma generate`,
+# care ruleaza in postinstall.
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+COPY prisma7.config.ts ./
+
+# `prisma generate` citeste configul, care citeste DATABASE_URL. Generarea nu
+# are nevoie de o baza de date reala, dar variabila trebuie sa existe.
+ENV DATABASE_URL="sqlserver://placeholder:1433;database=x;user=x;password=x"
+RUN npm ci
+
+COPY . .
+
+# Pe macOS, watcher-ul de fisiere nu primeste evenimente prin volume montate.
+ENV WATCHPACK_POLLING=true
+ENV NEXT_TELEMETRY_DISABLED=1
+
+EXPOSE 3000
+
+COPY docker-entrypoint.dev.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.dev.sh
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.dev.sh"]

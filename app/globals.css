@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+/*
+  Sistemul vizual: caietul de limba romana, intr-o executie contemporana.
+
+  Doua culori cu inteles fix -- nu sunt decor:
+    - albastru-cerneala = vocea elevului (legaturi, accente publice)
+    - rosu              = mana profesoarei, DOAR pentru moderare
+
+  Daca apare rosu pe partea publica a site-ului, e o greseala.
+
+  TEMA: alb implicit, indiferent de setarea sistemului de operare.
+  Modul intunecat se activeaza doar prin butonul din antet, care pune
+  data-theme="dark" pe <html>. Vezi components/ThemeToggle.tsx si scriptul
+  anti-palpaire din app/layout.tsx.
+*/
+
+@theme {
+  /* --- Suprafete --- */
+  --color-hartie: #ffffff;
+  --color-suprafata: #f8f9fb;
+  --color-hartie-umbra: #f1f3f7;
+
+  /* --- Text ---
+     Valorile sunt alese sa treaca WCAG AA (4.5:1) pe fundalul lor, nu dupa
+     cum arata. `cerneala-stinsa` poarta clasa si data la 14px -- text normal,
+     deci pragul de 3:1 pentru "text mare" nu se aplica. */
+  --color-cerneala: #141a24;
+  --color-cerneala-slaba: #55607a;
+  --color-cerneala-stinsa: #6b7383;
+
+  /* --- Albastrul stiloului --- */
+  --color-stilou: #2f5fd0;
+  --color-stilou-deschis: #eef3fe;
+
+  /* --- Pixul rosu, exclusiv moderare --- */
+  --color-pix: #d93a2b;
+  --color-pix-deschis: #fef0ee;
+
+  /* --- Starea "in asteptare" --- */
+  --color-asteptare: #8f5f0a;
+  --color-asteptare-deschis: #fef6e7;
+
+  /* --- Linii --- */
+  --color-liniatura: #e6e9ef;
+  --color-liniatura-tare: #d2d8e2;
+
+  --font-scris: var(--font-spectral);
+  --font-ui: var(--font-archivo);
+
+  /* Latimea coloanei de lectura: ~65 de caractere de Spectral.
+     Numele trebuie sa fie `--container-*`, NU `--spacing-*`: in Tailwind v4
+     utilitarele max-w-* citesc din spatiul de nume `--container`. Cu
+     `--spacing-lectura`, clasa `max-w-lectura` pur si simplu nu se genereaza
+     si limitarea nu se aplica -- fara niciun avertisment. */
+  --container-lectura: 38rem;
+
+  /* Raze consecvente. Interfata moderna are colturi usor rotunjite;
+     zero peste tot ar citi ca "brutalist", iar valori amestecate ca neglijent. */
+  --radius-mic: 6px;
+  --radius-mediu: 10px;
+  --radius-mare: 16px;
+}
+
+/*
+  Modul intunecat: hartie pe cerneala.
+
+  Se aplica DOAR pe [data-theme="dark"], niciodata prin prefers-color-scheme --
+  utilizatorul a cerut alb implicit. Redefinim doar variabilele; utilitarele
+  Tailwind se compileaza in var(--color-*), deci se actualizeaza singure.
+
+  (ATENTIE la un `@theme` imbricat intr-un @media sau intr-un selector:
+  Tailwind v4 il aplatizeaza si ar sterge complet paleta luminoasa.)
+*/
+:root[data-theme="dark"] {
+  --color-hartie: #0e1219;
+  --color-suprafata: #161c26;
+  --color-hartie-umbra: #1b2230;
+
+  --color-cerneala: #e9ecf2;
+  --color-cerneala-slaba: #a2acbe;
+  --color-cerneala-stinsa: #7b8598;
+
+  --color-stilou: #7fa5f5;
+  --color-stilou-deschis: #17233d;
+
+  --color-pix: #f08579;
+  --color-pix-deschis: #2c1a18;
+
+  --color-asteptare: #e0b45c;
+  --color-asteptare-deschis: #2a2317;
+
+  --color-liniatura: #232b38;
+  --color-liniatura-tare: #333d4e;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-hartie);
+    color: var(--color-cerneala);
+    font-family: var(--font-ui), system-ui, sans-serif;
+    /* Diacriticele romanesti (ă î â ș ț) trebuie sa ramana lizibile la
+       dimensiuni mici. */
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Titlurile mari au nevoie de tracking usor negativ ca sa nu para rarefiate. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-stilou);
+    outline-offset: 2px;
+    border-radius: var(--radius-mic);
+  }
+
+  ::selection {
+    background-color: var(--color-stilou-deschis);
+    color: var(--color-cerneala);
+  }
+
+  /* Tranzitia temei: doar culorile, nu si pozitiile. */
+  .tranzitie-tema,
+  .tranzitie-tema * {
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+}
+
+/*
+  Textul publicat al elevilor.
+
+  Aliniat la stanga, niciodata justify: romana nu are despartire in silabe in
+  browser fara `hyphens`, iar textul justificat fara despartire produce "rauri"
+  de spatiu alb -- exact in textele lungi unde conteaza cel mai mult.
+*/
+.scris {
+  font-family: var(--font-scris), Georgia, serif;
+  font-size: 1.1875rem;
+  line-height: 1.78;
+  color: var(--color-cerneala);
+  text-align: left;
+  letter-spacing: 0;
+}
+
+.scris p + p {
+  margin-top: 1.3em;
+}
+
+.scris h2,
+.scris h3 {
+  font-family: var(--font-scris), Georgia, serif;
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 2em;
+  margin-bottom: 0.5em;
+}
+
+.scris h2 {
+  font-size: 1.625rem;
+}
+
+.scris h3 {
+  font-size: 1.3125rem;
+}
+
+.scris blockquote {
+  margin: 1.75em 0;
+  padding: 0.25em 0 0.25em 1.35em;
+  border-left: 3px solid var(--color-stilou);
+  color: var(--color-cerneala-slaba);
+  font-style: italic;
+}
+
+.scris ul,
+.scris ol {
+  margin: 1.3em 0;
+  padding-left: 1.4em;
+}
+
+.scris ul {
+  list-style: disc;
+}
+
+.scris ol {
+  list-style: decimal;
+}
+
+.scris li + li {
+  margin-top: 0.45em;
+}
+
+.scris li::marker {
+  color: var(--color-cerneala-stinsa);
+}
+
+.scris a {
+  color: var(--color-stilou);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.scris img {
+  max-width: 100%;
+  height: auto;
+  margin: 2em 0;
+  border-radius: var(--radius-mediu);
+}
+
+.scris strong {
+  font-weight: 600;
+  color: var(--color-cerneala);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
