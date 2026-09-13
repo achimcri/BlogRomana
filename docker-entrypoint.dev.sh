@@ -1,9 +1,6 @@
 #!/bin/sh
 set -e
 
-echo "→ Aștept SQL Server și pregătesc baza de date…"
-npx tsx scripts/ensure-db.ts
-
 echo "→ Aplic migrările…"
 npx prisma migrate deploy
 

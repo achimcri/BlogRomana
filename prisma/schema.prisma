@@ -1,11 +1,15 @@
 // Schema Prisma pentru blogul de limba romana.
 //
-// Doua constrangeri SQL Server de care depinde tot fisierul:
-//  1. Prisma NU suporta `enum` pe SQL Server -> statusurile sunt String,
-//     iar tipurile stricte stau in lib/types.ts si sunt validate cu Zod.
-//  2. Cheile de index sunt limitate la 900 de octeti, iar String devine
-//     implicit NVarChar(1000). Orice coloana cu @id, @unique sau @@index
-//     are deci lungime explicita.
+// Baza de date: PostgreSQL (Neon in productie, Postgres in Docker local).
+//
+// Istoric util: pana la alegerea gazduirii, schema era pe SQL Server si purta
+// doua ocolisuri care ACUM NU MAI SUNT NECESARE:
+//   - lungimi explicite pe fiecare coloana indexata (SQL Server limiteaza
+//     cheile de index la 900 de octeti, iar String devenea NVarChar(1000));
+//   - statusuri ca String, pentru ca Prisma nu suporta `enum` pe SQL Server.
+// Pe Postgres ambele dispar. Statusurile raman totusi String, validate cu Zod
+// in lib/validation.ts: e mai putin rigid la adaugarea unei stari noi, care
+// altfel ar cere o migrare doar pentru asta.
 
 generator client {
   provider = "prisma-client"
@@ -13,16 +17,17 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlserver"
+  provider = "postgresql"
 }
 
 model User {
-  id        String   @id @default(cuid()) @db.NVarChar(30)
-  email     String   @unique @db.NVarChar(320)
-  name      String?  @db.NVarChar(200)
-  image     String?  @db.NVarChar(1000)
-  // TEACHER | ADMIN  (vezi Role in lib/types.ts)
-  role      String   @default("TEACHER") @db.NVarChar(20)
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  // TEACHER | ADMIN (vezi Role in lib/types.ts).
+  // Se rescrie la fiecare login din TEACHER_EMAILS / ADMIN_EMAILS.
+  role      String   @default("TEACHER")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -30,33 +35,33 @@ model User {
 }
 
 model Post {
-  id          String  @id @default(cuid()) @db.NVarChar(30)
-  slug        String  @unique @db.NVarChar(200)
-  title       String  @db.NVarChar(300)
+  id    String @id @default(cuid())
+  slug  String @unique
+  title String
   // HTML deja trecut prin lib/sanitize.ts. Nimic nu ajunge aici nesanitizat.
-  contentHtml String  @db.NVarChar(Max)
-  // Text simplu, derivat din contentHtml pentru listare si meta description.
-  excerpt     String? @db.NVarChar(500)
+  contentHtml String
+  // Text simplu, pentru meta description si Open Graph.
+  excerpt     String?
 
   // DRAFT | PENDING | PUBLISHED | REJECTED
-  status     String @default("PENDING") @db.NVarChar(20)
+  status String @default("PENDING")
   // TEACHER | STUDENT
-  authorType String @db.NVarChar(20)
+  authorType String
 
   // Completat doar pentru authorType = TEACHER
-  authorUserId String? @db.NVarChar(30)
-  author       User?   @relation(fields: [authorUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  authorUserId String?
+  author       User?   @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
 
   // Completate doar pentru authorType = STUDENT. Datele complete raman aici
   // pentru profesoara; ce se publica efectiv este displayName.
-  studentFirstName String? @db.NVarChar(100)
-  studentLastName  String? @db.NVarChar(100)
-  studentClass     String? @db.NVarChar(50)
+  studentFirstName String?
+  studentLastName  String?
+  studentClass     String?
 
   // Numele afisat public, ex. "Maria P." Se stabileste la aprobare.
-  displayName String? @db.NVarChar(200)
+  displayName String?
 
-  rejectionReason String? @db.NVarChar(1000)
+  rejectionReason String?
 
   submittedAt DateTime  @default(now())
   publishedAt DateTime?
@@ -71,15 +76,15 @@ model Post {
 }
 
 model PostImage {
-  id     String @id @default(cuid()) @db.NVarChar(30)
-  postId String @db.NVarChar(30)
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id     String @id @default(cuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  // Calea in containerul de Blob Storage; necesara ca sa putem sterge fisierul.
-  blobName String  @db.NVarChar(500)
-  url      String  @db.NVarChar(1000)
-  thumbUrl String? @db.NVarChar(1000)
-  caption  String? @db.NVarChar(500)
+  // Calea in stocarea de obiecte; necesara ca sa putem sterge fisierul.
+  blobName String
+  url      String
+  thumbUrl String?
+  caption  String?
   width    Int?
   height   Int?
   // Ordinea aleasa de autor in galerie.
@@ -92,24 +97,24 @@ model PostImage {
 
 // Un singur rand, cu id = 1. Setarile editabile de profesoara din /admin/setari.
 model SiteSettings {
-  id          Int     @id @default(1)
-  siteTitle   String  @default("Blog de Limba Română") @db.NVarChar(200)
-  siteTagline String? @db.NVarChar(500)
-  aboutHtml   String? @db.NVarChar(Max)
+  id          Int      @id @default(1)
+  siteTitle   String   @default("Blog de Limba Română")
+  siteTagline String?
+  aboutHtml   String?
   updatedAt   DateTime @updatedAt
 }
 
 // Cine ce a aprobat, respins sau sters. Nu se sterge niciodata.
 model AuditLog {
-  id         String   @id @default(cuid()) @db.NVarChar(30)
-  actorEmail String   @db.NVarChar(320)
+  id         String @id @default(cuid())
+  actorEmail String
   // CREATE | EDIT | APPROVE | REJECT | DELETE | PUBLISH | UNPUBLISH
-  action     String   @db.NVarChar(30)
+  action String
   // Intentionat FARA relatie: logul trebuie sa supravietuiasca stergerii postarii.
-  postId     String?  @db.NVarChar(30)
-  postTitle  String?  @db.NVarChar(300)
-  details    String?  @db.NVarChar(1000)
-  createdAt  DateTime @default(now())
+  postId    String?
+  postTitle String?
+  details   String?
+  createdAt DateTime @default(now())
 
   @@index([createdAt])
 }

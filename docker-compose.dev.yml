@@ -1,37 +1,32 @@
 # Mediul complet de dezvoltare: aplicația + baza de date.
 #
-#   docker compose -f docker-compose.dev.yml up --build
+#   npm run docker:up
 #
 # Apoi deschide http://localhost:3000
 #
-# ATENTIE (Apple Silicon): imaginea SQL Server exista doar pentru x86_64, deci
-# ruleaza prin emulare. Activeaza in Docker Desktop:
-#   Settings -> General -> "Use Rosetta for x86_64/amd64 emulation on Apple Silicon"
+# Postgres rulează nativ pe Apple Silicon, deci nu mai e nevoie de emulare
+# Rosetta (cum cerea imaginea SQL Server, folosită înainte de mutarea pe Neon).
 
 services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    platform: linux/amd64
-    container_name: blogromana-sqlserver
+  postgres:
+    image: postgres:17-alpine
+    container_name: blogromana-postgres
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "LocalDev_Parola123"
-      MSSQL_PID: "Developer"
+      POSTGRES_USER: blogromana
+      POSTGRES_PASSWORD: LocalDev_Parola123
+      # Imaginea creează baza de date la prima pornire, deci nu mai avem
+      # nevoie de un pas separat de creare (cum cerea SQL Server).
+      POSTGRES_DB: blogromana
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - mssql-data:/var/opt/mssql
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      # /opt/mssql-tools18/ este calea din imaginea 2022; -C accepta certificatul self-signed
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1",
-        ]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U blogromana -d blogromana"]
+      interval: 5s
       timeout: 5s
       retries: 12
-      start_period: 30s
+      start_period: 10s
 
   app:
     build:
@@ -39,25 +34,25 @@ services:
       dockerfile: Dockerfile.dev
     container_name: blogromana-app
     depends_on:
-      sqlserver:
+      postgres:
         condition: service_healthy
-    # Citim .env pentru AUTH_SECRET si credentialele Google, apoi suprascriem
-    # DATABASE_URL: in reteaua compose, gazda bazei este "sqlserver", nu localhost.
+    # Citim .env pentru AUTH_SECRET și credențialele Google, apoi suprascriem
+    # DATABASE_URL: în rețeaua compose, gazda bazei este "postgres", nu localhost.
     env_file:
       - .env
     environment:
-      DATABASE_URL: "sqlserver://sqlserver:1433;database=blogromana;user=sa;password=LocalDev_Parola123;encrypt=true;trustServerCertificate=true"
+      DATABASE_URL: "postgresql://blogromana:LocalDev_Parola123@postgres:5432/blogromana"
       AUTH_URL: "http://localhost:3000"
       NODE_ENV: development
     ports:
       - "3000:3000"
     volumes:
-      # Codul sursa, ca modificarile sa se vada imediat.
+      # Codul sursă, ca modificările să se vadă imediat.
       - .:/app
-      # Volume anonime care ACOPERA folderele de pe gazda: node_modules contine
-      # binare compilate pentru macOS-arm64, care nu ruleaza in container.
+      # Volume anonime care ACOPERĂ folderele de pe gazdă: node_modules conține
+      # binare compilate pentru macOS-arm64, care nu rulează în container.
       - /app/node_modules
       - /app/.next
 
 volumes:
-  mssql-data:
+  postgres-data:
